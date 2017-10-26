@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# script to update axisRecord.html from axisCore/AxisSrc/axisRecord.dbd.pod
+# script to update axisRecord.html from AxisSrc/axisRecord.dbd.pod
 # This needs base R3.15.4 or higher
 # For the moment, we assume that there is a (shell) environment variable
 # like this
@@ -11,7 +11,7 @@
 
 # pathes and file names
 AXISPWD=$PWD
-AXISDBD=$AXISPWD/axisCore/AxisSrc/axisRecord.dbd
+AXISDBD=$AXISPWD/AxisSrc/axisRecord.dbd
 AXISRECORDHTML=axisRecord.html
 
 #perl and perl files
@@ -24,7 +24,7 @@ export AXISPWD AXISDBD AXISRECORDHTML AXISPERL DBDTOHTMLPL PODREMOVEPL
 
 if test -x "$DBDTOHTMLPL"; then
 (
-  rm -f $AXISPWD/axisCore/documentation/$AXISRECORDHTML &&
+  rm -f $AXISPWD/documentation/$AXISRECORDHTML &&
   if test -e "$AXISDBD"; then
     chmod u+w $AXISDBD
   fi &&
@@ -34,12 +34,12 @@ if test -x "$DBDTOHTMLPL"; then
   cmd=$(echo $AXISPERL $DBDTOHTMLPL -I $EPICS_BASE/dbd/ $AXISDBD.pod)
   echo $cmd &&
   eval $cmd &&
-  mv $AXISRECORDHTML $AXISPWD/axisCore/documentation/$AXISRECORDHTML
+  mv $AXISRECORDHTML $AXISPWD/documentation/$AXISRECORDHTML
 )
 else
   echo "Info: dbdToHtml.pl is only available in EPICS base since 15.4" &&
   echo "Info: You can ignore this message, if you didn't change $AXISDBD.pod" &&
   touch $AXISDBD &&
-  touch $AXISPWD/axisCore/documentation/$AXISRECORDHTML
+  touch $AXISPWD/documentation/$AXISRECORDHTML
 fi &&
 chmod -v ugo-w $AXISDBD

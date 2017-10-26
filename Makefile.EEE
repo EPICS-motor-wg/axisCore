@@ -1,0 +1,33 @@
+EXCLUDE_VERSIONS=3.14.12.5
+include ${EPICS_ENV_PATH}/module.Makefile
+
+PROJECT=axisCore
+
+USR_DEPENDENCIES = asyn,4.31.0
+
+TEMPLATES += Db/axis.db
+TEMPLATES += Db/axisUtil.db
+TEMPLATES += Db/basic_asyn_axis.db
+TEMPLATES += Db/basic_axis.db
+TEMPLATES += Db/pseudoAxis.db
+TEMPLATES += Db/trajectoryScan.db
+
+DBDS += AxisSrc/axisSupport.dbd
+DBDS += AxisSrc/axisRecord.dbd
+
+SUBSTITUTIONS=-none-
+
+SOURCES += AxisSrc/asynAxisAxis.cpp
+SOURCES += AxisSrc/asynAxisController.cpp
+SOURCES += AxisSrc/axisRecord.cc
+SOURCES += AxisSrc/axisUtil.cc
+SOURCES += AxisSrc/axisUtilAux.cc
+SOURCES += AxisSrc/devAxisAsyn.c
+SOURCES += AxisSrc/paramLib.c
+
+HEADERS += AxisSrc/axis.h
+HEADERS += AxisSrc/asynAxisAxis.h
+HEADERS += AxisSrc/asynAxisController.h
+  
+  
+  
