@@ -1,5 +1,11 @@
 EXCLUDE_VERSIONS=3.14.12.5
+# Temporally removed to speed up 
+EXCLUDE_ARCHS += eldk
+
 include ${EPICS_ENV_PATH}/module.Makefile
+
+AUTO_DEPENDENCIES = NO
+USR_DEPENDENCIES = asyn,4.31.0
 
 PROJECT=axisCore
 
