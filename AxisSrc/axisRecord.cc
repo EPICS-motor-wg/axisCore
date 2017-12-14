@@ -791,6 +791,8 @@ static long init_record(dbCommon* arg, int pass)
     MARK(M_MOVN);
     pmr->lspg = pmr->spmg = motorSPMG_Go;
     MARK(M_SPMG);
+    pmr->diff = pmr->dval - pmr->drbv;
+    MARK(M_DIFF);
     pmr->priv->last.val = pmr->val;
     pmr->priv->last.dval = pmr->dval;
     pmr->priv->last.rval = pmr->rval;
@@ -1175,6 +1177,8 @@ static long postProcess(axisRecord * pmr)
         MARK(M_DVAL);
         pmr->rval = NINT(pmr->dval / pmr->mres);
         MARK(M_RVAL);
+        pmr->diff = 0.;
+        MARK(M_DIFF);
     }
 
     if (pmr->mip & MIP_LOAD_P)
@@ -3744,6 +3748,9 @@ static void process_motor_info(axisRecord * pmr, bool initcall)
 
     if (pmr->athm != old_athm)
         MARK(M_ATHM);
+    pmr->diff = pmr->dval - pmr->drbv;
+    MARK(M_DIFF);
+
 }
 
 /* Calc and load new raw position into motor w/out moving it. */

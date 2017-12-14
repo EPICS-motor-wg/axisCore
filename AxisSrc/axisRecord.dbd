@@ -634,6 +634,10 @@ recordtype(axis) {
                 prompt("Dial Readback Value")
                 special(SPC_NOMOD)
         }
+        field(DIFF,DBF_DOUBLE) {
+                prompt("Difference dval-drbv")
+                special(SPC_NOMOD)
+        }
         field(CDIR,DBF_SHORT) {
                 prompt("Raw cmnd direction")
                 special(SPC_NOMOD)
