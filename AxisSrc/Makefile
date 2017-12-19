@@ -22,6 +22,7 @@ INC += asynAxisAxis.h
 LIBRARY_IOC += axis
 
 # The following are required for all axis record configurations.
+axis_SRCS += axisDevSup.c
 axis_SRCS += axisRecord.cc
 axis_SRCS += axisUtilAux.cc
 axis_SRCS += axisUtil.cc

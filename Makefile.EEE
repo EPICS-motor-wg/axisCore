@@ -25,6 +25,7 @@ SUBSTITUTIONS=-none-
 
 SOURCES += AxisSrc/asynAxisAxis.cpp
 SOURCES += AxisSrc/asynAxisController.cpp
+SOURCES += AxisSrc/axisDevSup.c
 SOURCES += AxisSrc/axisRecord.cc
 SOURCES += AxisSrc/axisUtil.cc
 SOURCES += AxisSrc/axisUtilAux.cc

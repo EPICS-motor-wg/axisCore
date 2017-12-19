@@ -209,6 +209,7 @@ USAGE...        Motor Record Support.
 #include    "axis.h"
 #include    "epicsExport.h"
 #include    "errlog.h"
+#include    "axisDevSup.h"
 
 volatile int axisRecordDebug = 0;
 extern "C" {epicsExportAddress(int, axisRecordDebug);}
@@ -280,35 +281,6 @@ rset axisRSET =
 };
 extern "C" {epicsExportAddress(rset, axisRSET);}
 
-
-/*******************************************************************************
-Support for tracking the progress of motor from one invocation of 'process()'
-to the next.  The field 'pmr->mip' stores the motion in progress using these
-fields.  ('pmr' is a pointer to axisRecord.)
-*******************************************************************************/
-#define MIP_DONE        0x0000  /* No motion is in progress. */
-#define MIP_JOGF        0x0001  /* A jog-forward command is in progress. */
-#define MIP_JOGR        0x0002  /* A jog-reverse command is in progress. */
-#define MIP_JOG_BL1     0x0004  /* Done jogging; 1st phase take out backlash. */
-#define MIP_JOG         (MIP_JOGF | MIP_JOGR | MIP_JOG_BL1 | MIP_JOG_BL2)
-#define MIP_HOMF        0x0008  /* A home-forward command is in progress. */
-#define MIP_HOMR        0x0010  /* A home-reverse command is in progress. */
-#define MIP_HOME        (MIP_HOMF | MIP_HOMR)
-#define MIP_MOVE        0x0020  /* A move not resulting from Jog* or Hom*. */
-#define MIP_RETRY       0x0040  /* A retry is in progress. */
-#define MIP_LOAD_P      0x0080  /* A load-position command is in progress. */
-#define MIP_MOVE_BL     0x0100  /* Done moving; now take out backlash. */
-#define MIP_STOP        0x0200  /* We're trying to stop.  When combined with */
-/*                                 MIP_JOG* or MIP_HOM*, the jog or home     */
-/*                                 command is performed after motor stops    */
-#define MIP_DELAY_REQ   0x0400  /* We set the delay watchdog */
-#define MIP_DELAY_ACK   0x0800  /* Delay watchdog is calling us back */
-#define MIP_DELAY       (MIP_DELAY_REQ | MIP_DELAY_ACK) /* Waiting for readback
-                                                         * to settle */
-#define MIP_JOG_REQ     0x1000  /* Jog Request. */
-#define MIP_JOG_STOP    0x2000  /* Stop jogging. */
-#define MIP_JOG_BL2     0x4000  /* 2nd phase take out backlash. */
-#define MIP_EXTERNAL    0x8000  /* Move started by external source */
 
 /*******************************************************************************
 Support for keeping track of which record fields have been changed, so we can
@@ -411,35 +383,6 @@ WARNING!!! The following macros assume that a variable (i.e., mmap_bits
 #define MARKED_AUX(FIELD) (nmap_bits.Bits.FIELD)
 
 #define UNMARK_ALL      pmr->mmap = pmr->nmap = 0
-
-/*******************************************************************************
-Device support allows us to string several motor commands into a single
-"transaction", using the calls prototyped below:
-
-        int start_trans(dbCommon *mr)
-        int build_trans(int command, double *parms, dbCommon *mr)
-        int end_trans(struct dbCommon *mr, int go)
-
-For clarity and to avoid typo's, the macros defined below provide simplified
-calls.
-
-                --- NOTE WELL ---
-        The following macros assume that the variable "pmr" points to a motor
-        record, and that the variable "pdset" points to that motor record's device
-        support entry table:
-                axisRecord *pmr;
-                struct motor_dset *pdset = (struct motor_dset *)(pmr->dset);
-
-        No checks are made in this code to ensure that these conditions are met.
-*******************************************************************************/
-/* To begin a transaction... */
-#define INIT_MSG()                              (*pdset->start_trans)(pmr)
-
-/* To send a single command... */
-#define WRITE_MSG(cmd,parms)    (*pdset->build_trans)((cmd), (parms), pmr)
-
-/* To end a transaction and send accumulated commands to the motor... */
-#define SEND_MSG()                              (*pdset->end_trans)(pmr)
 
 
 /* How to move, either use VELO/ACCL or BVEL/BACC */
@@ -875,188 +818,6 @@ LOGIC:
     
     
 ******************************************************************************/
-/*
- * Set cdir dependent on the commanded move in "raw direction"
- * directionRaw > 0  is positive
- * directionRaw <= 0 is negative
- */
-static void setCDIRfromRawMove(axisRecord *pmr, int directionRaw)
-{
-    int cdirRaw = directionRaw > 0 ? 1 : 0; /* only 1 or 0 */
-    if (pmr->cdir != cdirRaw)
-    {
-        MARK_AUX(M_CDIR);
-        pmr->cdir = cdirRaw;
-    }
-}
-/*****************************************************************************
-
-******************************************************************************/
-/*
- * Set cdir dependent on the commanded move in "dial direction"
- * directionDial > 0  is positive
- * directionDial <= 0 is negative
- */
-static void setCDIRfromDialMove(axisRecord *pmr, int directionDial)
-{
-    int cdirRaw = directionDial > 0 ? 1 : 0;
-    if (pmr->mres < 0.0)       /* mres < 0 means invert direction dial <-> raw */
-        cdirRaw = !cdirRaw; /* If needed, 1 -> 0; 0 -> 1 */
-    setCDIRfromRawMove(pmr, cdirRaw);
-}
-/*****************************************************************************
-  Calls to device support
-  Wrappers that call device support.
-*****************************************************************************/
-static void devSupStop(axisRecord *pmr)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    INIT_MSG();
-    WRITE_MSG(STOP_AXIS, NULL);
-    SEND_MSG();
-}
-
-/* No WRITE_MSG(STOP_AXIS, NULL); after this point */
-#define STOP_AXIS #ErrorSTOP_AXIS
-/******************************************************************************/
-
-static void devSupLoadPos(axisRecord *pmr, double newpos)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    double tmp = newpos;
-    INIT_MSG();
-    WRITE_MSG(LOAD_POS, &tmp);
-    SEND_MSG();
-}
-/* No WRITE_MSG(LOAD_POS, newpos); after this point */
-#define LOAD_POS #ErrorLOAD_POS
-
-/******************************************************************************/
-static RTN_STATUS devSupGetInfo(axisRecord *pmr)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    RTN_STATUS status;
-    INIT_MSG();
-    status = WRITE_MSG(GET_INFO, NULL);
-    if (status != ERROR)
-    {
-        SEND_MSG();
-    }
-    return status;
-}
-/* No WRITE_MSG(GET_INFO, NULL); after this point */
-#define GET_INFO #ErrorGET_INFO
-
-/*****************************************************************************/
-static RTN_STATUS devSupUpdateLimitFromDial(axisRecord *pmr, motor_cmnd command,
-                                        double dialValue)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    double tmp_raw = dialValue / pmr->mres;
-
-    RTN_STATUS status;
-
-    INIT_MSG();
-    status = WRITE_MSG(command, &tmp_raw);
-    if (status == OK)
-    {
-        SEND_MSG();
-    }
-    return status;
-}
-
-/*****************************************************************************/
-static void devSupMoveAbsRaw(axisRecord *pmr, double vel, double vbase,
-                             double acc, double pos)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    INIT_MSG();
-    if (vel <= vbase)
-        vel = vbase + 1;
-    WRITE_MSG(SET_VELOCITY, &vel);
-    WRITE_MSG(SET_VEL_BASE, &vbase);
-    if (acc > 0.0)  /* Don't SET_ACCEL if vel = vbase. */
-        WRITE_MSG(SET_ACCEL, &acc);
-    WRITE_MSG(MOVE_ABS, &pos);
-    WRITE_MSG(GO, NULL);
-    SEND_MSG();
-}
-/* No WRITE_MSG(MOVE_ABS, ); after this point */
-#define MOVE_ABS #ErrorMOVE_ABS
-
-
-/*****************************************************************************/
-static void devSupMoveRelRaw(axisRecord *pmr, double vel, double vbase,
-                             double acc, double relpos)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    INIT_MSG();
-    if (vel <= vbase)
-        vel = vbase + 1;
-    WRITE_MSG(SET_VELOCITY, &vel);
-    WRITE_MSG(SET_VEL_BASE, &vbase);
-    if (acc > 0.0)  /* Don't SET_ACCEL if vel = vbase. */
-        WRITE_MSG(SET_ACCEL, &acc);
-    WRITE_MSG(MOVE_REL, &relpos);
-    WRITE_MSG(GO, NULL);
-    SEND_MSG();
-}
-/* No WRITE_MSG(MOVE_REL, ); after this point */
-#define MOVE_REL #ErrorMOVE_REL
-
-/*****************************************************************************/
-static void devSupJogDial(axisRecord *pmr, double jogv, double jacc)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    double jogvRaw = jogv / pmr->mres;
-    double jaccRaw = jacc / fabs(pmr->mres);
-    double vbaseRaw = pmr->vbas / fabs(pmr->mres);
-
-    INIT_MSG();
-    WRITE_MSG(SET_VEL_BASE, &vbaseRaw);
-    WRITE_MSG(SET_ACCEL, &jaccRaw);
-    WRITE_MSG(JOG, &jogvRaw);
-    SEND_MSG();
-    setCDIRfromRawMove(pmr, jogvRaw > 0);
-}
-/* No WRITE_MSG(JOG, ); after this point */
-#define JOG #ErrorJOG
-
-/*****************************************************************************/
-static void devSupUpdateJogRaw(axisRecord *pmr, double jogv, double jacc)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    INIT_MSG();
-    WRITE_MSG(SET_ACCEL, &jacc);
-    WRITE_MSG(JOG_VELOCITY, &jogv);
-    SEND_MSG();
-}
-/* No WRITE_MSG(JOG_VELOCITY, ); after this point */
-#define JOG_VELOCITY #ErrorJOG
-
-
-/*****************************************************************************/
-static void devSupCNEN(axisRecord *pmr, double cnen)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    double temp_dbl;
-    INIT_MSG();
-    if (cnen)
-        WRITE_MSG(ENABLE_TORQUE, &temp_dbl);
-    else
-        WRITE_MSG(DISABL_TORQUE, &temp_dbl);
-    SEND_MSG();
-}
-
-/*****************************************************************************/
-static void devSupSetEncRatio(axisRecord *pmr, double ep_mp[2])
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    INIT_MSG();
-    WRITE_MSG(SET_ENC_RATIO, ep_mp);
-    SEND_MSG();
-}
-
 static void doMoveDialPosition(axisRecord *pmr, enum moveMode moveMode,
                                double position)
 {
@@ -1115,33 +876,6 @@ static void doBackLash(axisRecord *pmr)
     pmr->pp = TRUE;
 }
 
-/*****************************************************************************/
-static void doHomeSetcdir(axisRecord *pmr)
-{
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
-    double vbase = pmr->vbas / fabs(pmr->mres);
-    double hpos = 0;
-    double hvel =  pmr->hvel / fabs(pmr->mres);
-    double acc = (hvel - vbase) / pmr->accl;
-    motor_cmnd command;
-
-    INIT_MSG();
-    WRITE_MSG(SET_VELOCITY, &hvel);
-    WRITE_MSG(SET_VEL_BASE, &vbase);
-    if (acc > 0.0)  /* Don't SET_ACCEL to zero. */
-        WRITE_MSG(SET_ACCEL, &acc);
-
-    if (((pmr->mip & MIP_HOMF) && (pmr->mres > 0.0)) ||
-        ((pmr->mip & MIP_HOMR) && (pmr->mres < 0.0)))
-        command = HOME_FOR;
-    else
-        command = HOME_REV;
-
-    WRITE_MSG(command, &hpos);
-    WRITE_MSG(GO, NULL);
-    SEND_MSG();
-    pmr->cdir = (command == HOME_FOR) ? 1 : 0;
-}
 /* No WRITE_MSG(HOME_FOR) or HOME_REV */
 #define HOME_FOR #ErrorHOME_FOR
 #define HOME_REV #ErrorHOME_REV
@@ -2611,13 +2345,11 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
 static long special(DBADDR *paddr, int after)
 {
     axisRecord *pmr = (axisRecord *) paddr->precord;
-    struct motor_dset *pdset = (struct motor_dset *) (pmr->dset);
     int dir_positive = (pmr->dir == motorDIR_Pos);
     int dir = dir_positive ? 1 : -1;
     bool changed = false;
     int fieldIndex = dbGetFieldIndex(paddr);
     double fabs_urev;
-    RTN_STATUS rtnval;
     motor_cmnd command;
     double temp_dbl;
     double *pcoeff;
@@ -3009,16 +2741,9 @@ pidcof:
                 *pcoeff = 1.0;
                 changed = true;
             }
-
-            INIT_MSG();
-            rtnval = (*pdset->build_trans)(command, pcoeff, pmr);
-            /* If an error occured, build_trans() has reset the gain
-             * parameter to a valid value for this controller. */
-            if (rtnval != OK)
+            if (devSupSetPID(pmr, command, pcoeff))
                 changed = true;
-
-            SEND_MSG();
-            if (changed == 1)
+            if (changed )
                 db_post_events(pmr, pcoeff, DBE_VAL_LOG);
         }
         break;
