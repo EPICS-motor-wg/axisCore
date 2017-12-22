@@ -34,6 +34,7 @@ class epicsShareClass asynAxisAxis {
   virtual asynStatus moveVelocity(double minVelocity, double maxVelocity, double acceleration);
   virtual asynStatus home(double minVelocity, double maxVelocity, double acceleration, int forwards);
   virtual asynStatus stop(double acceleration);
+  virtual asynStatus initialPoll(void);
   virtual asynStatus poll(bool *moving);
   virtual asynStatus setPosition(double position);
   virtual asynStatus setEncoderPosition(double position);
@@ -81,6 +82,7 @@ class epicsShareClass asynAxisAxis {
   int referencingModeMove_;
   int wasMovingFlag_;
   int disableFlag_;
+  int initialPollDone_;
   double lastEndOfMoveTime_;
   
   friend class asynAxisController;

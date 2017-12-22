@@ -55,6 +55,7 @@ asynAxisAxis::asynAxisAxis(class asynAxisController *pC, int axisNo)
 
   wasMovingFlag_ = 0;
   disableFlag_ = 0;
+  initialPollDone_ = 0;
   lastEndOfMoveTime_ = 0;
 
   // Create the asynUser, connect to this axis
@@ -108,6 +109,14 @@ asynStatus asynAxisAxis::stop(double acceleration)
   return asynSuccess;
 }
 
+
+/** initial poll of the axis.
+  * This function is only called once and should read the configuration of the controller,
+  * soft limits and other variables that can be used to initiate the record. */
+asynStatus asynAxisAxis::initialPoll(void)
+{
+  return asynSuccess;
+}
 
 /** Poll the axis.
   * This function should read the controller position, encoder position, and as many of the motorStatus flags

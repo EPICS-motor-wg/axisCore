@@ -689,7 +689,12 @@ void asynAxisController::asynMotorPoller()
     for (i=0; i<numAxes_; i++) {
       pAxis=getAxis(i);
       if (!pAxis) continue;
-      
+
+      if (!pAxis->initialPollDone_) {
+          asynStatus asynstatus;
+          asynstatus = pAxis->initialPoll();
+          if (asynstatus == asynSuccess) pAxis->initialPollDone_ = 1;
+      }
       getIntegerParam(i, motorPowerAutoOnOff_, &autoPower);
       getDoubleParam(i, motorPowerOffDelay_, &autoPowerOffDelay);
       
