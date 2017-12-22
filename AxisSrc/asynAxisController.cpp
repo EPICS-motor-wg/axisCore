@@ -225,6 +225,11 @@ asynStatus asynAxisController::writeInt32(asynUser *pasynUser, epicsInt32 value)
     bool moving;
     /* Do a poll, and then force a callback */
     poll();
+    if (!pAxis->initialPollDone_) {
+      asynStatus asynstatus;
+      asynstatus = pAxis->initialPoll();
+      if (asynstatus == asynSuccess) pAxis->initialPollDone_ = 1;
+    }
     status = pAxis->poll(&moving);
     pAxis->statusChanged_ = 1;
 
