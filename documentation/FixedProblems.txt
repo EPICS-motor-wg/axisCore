@@ -188,3 +188,11 @@ Values read out from the MCU and put into the record.
     - Setpoint deadband (SDBD)
     - Retry deadbanc (RDBD)
   (*) Unless the database sets values != 0.0 in the record.
+
+
+Fast repeated tweaking set the MISS field, if RTRY == 1
+  When RTRY was set to one, and the motor was tweaked fast a couple
+  of times, the MISS field was set.
+  The problem was that DVAL had been changed while moving, but after
+  the move DRBV was compared to DVAL. Use a private variable commandedDval
+  for the comparison.

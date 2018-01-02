@@ -842,6 +842,7 @@ static void doMoveDialPosition(axisRecord *pmr, enum moveMode moveMode,
         devSupMoveRelRaw(pmr, vel/amres, vbase/amres, accEGU/amres, diff/pmr->mres);
     else
         devSupMoveAbsRaw(pmr, vel/amres, vbase/amres, accEGU/amres, position/pmr->mres);
+    pmr->priv->last.commandedDval = position;
     setCDIRfromDialMove(pmr, diff < 0.0 ? 0 : 1);
 }
 
@@ -980,7 +981,7 @@ that it will happen when we return.
 static void maybeRetry(axisRecord * pmr)
 {
     bool user_cdir;
-    double diff = pmr->dval - pmr->drbv;
+    double diff = pmr->priv->last.commandedDval - pmr->drbv;
 
     /* Commanded direction in user coordinates. */
     user_cdir = ((pmr->dir == motorDIR_Pos) == (pmr->mres >= 0)) ? pmr->cdir : !pmr->cdir;

@@ -32,6 +32,7 @@ extern "C" {
       double motorLowLimitRaw;   /* last from dev support in status */
       double val;               /* last .VAL */
       double dval;               /* last .DVAL */
+      double commandedDval;      /* Where did we tell the motor to go */
       double rval;               /* last .RVAL */
       double rlv;                /* Last Rel Value (EGU) */
       double alst;               /* Last Value Archived */
