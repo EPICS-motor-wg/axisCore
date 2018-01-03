@@ -53,6 +53,8 @@ asynAxisAxis::asynAxisAxis(class asynAxisController *pC, int axisNo)
   /* Used to enable/disable move to home, and to tell driver how far to move.*/
   referencingModeMove_ = 0;
 
+  waitNumPollsBeforeReady_  = 0;
+  defWaitNumPollsBeforeReady_ = 0;
   wasMovingFlag_ = 0;
   disableFlag_ = 0;
   initialPollDone_ = 0;
@@ -258,6 +260,18 @@ asynStatus asynAxisAxis::setIntegerParam(int function, int value)
   // This assumes the parameters defined above are in the same order as the bits the motor record expects!
   if (function >= pC_->motorStatusDirection_ && 
       function <= pC_->motorStatusHomed_) {
+    if ((function == pC_->motorStatusDone_) &&
+        waitNumPollsBeforeReady_) {
+      /* Work around the ready before started problem */
+      if (value) {
+        waitNumPollsBeforeReady_--;
+        value = 0;
+      } else {
+        waitNumPollsBeforeReady_ = 0;
+      }
+      statusChanged_ = 1;
+    }
+
     status = status_.status;
     mask = 1 << (function - pC_->motorStatusDirection_);
     if (value) status |= mask;

@@ -312,6 +312,8 @@ asynStatus asynAxisController::writeFloat64(asynUser *pasynUser, epicsFloat64 va
     pAxis->setIntegerParam(motorLatestCommand_, LATEST_COMMAND_MOVE_REL);
     status = pAxis->move(value, 1, baseVelocity, velocity, acceleration);
     pAxis->setIntegerParam(motorStatusDone_, 0);
+    pAxis->waitNumPollsBeforeReady_ = 
+      pAxis->defWaitNumPollsBeforeReady_;
     pAxis->callParamCallbacks();
     wakeupPoller();
     asynPrint(pasynUser, ASYN_TRACE_FLOW, 
@@ -329,6 +331,8 @@ asynStatus asynAxisController::writeFloat64(asynUser *pasynUser, epicsFloat64 va
     pAxis->setIntegerParam(motorLatestCommand_, LATEST_COMMAND_MOVE_ABS);
     status = pAxis->move(value, 0, baseVelocity, velocity, acceleration);
     pAxis->setIntegerParam(motorStatusDone_, 0);
+    pAxis->waitNumPollsBeforeReady_ = 
+      pAxis->defWaitNumPollsBeforeReady_;
     pAxis->callParamCallbacks();
     wakeupPoller();
     asynPrint(pasynUser, ASYN_TRACE_FLOW, 
@@ -345,6 +349,8 @@ asynStatus asynAxisController::writeFloat64(asynUser *pasynUser, epicsFloat64 va
     pAxis->setIntegerParam(motorLatestCommand_, LATEST_COMMAND_MOVE_VEL);
     status = pAxis->moveVelocity(baseVelocity, value, acceleration);
     pAxis->setIntegerParam(motorStatusDone_, 0);
+    pAxis->waitNumPollsBeforeReady_ = 
+      pAxis->defWaitNumPollsBeforeReady_;
     pAxis->callParamCallbacks();
     wakeupPoller();
     asynPrint(pasynUser, ASYN_TRACE_FLOW, 
@@ -364,6 +370,8 @@ asynStatus asynAxisController::writeFloat64(asynUser *pasynUser, epicsFloat64 va
     pAxis->setIntegerParam(motorLatestCommand_, LATEST_COMMAND_HOMING);
     status = pAxis->home(baseVelocity, velocity, acceleration, forwards);
     pAxis->setIntegerParam(motorStatusDone_, 0);
+    pAxis->waitNumPollsBeforeReady_ = 
+      pAxis->defWaitNumPollsBeforeReady_;
     pAxis->callParamCallbacks();
     wakeupPoller();
     asynPrint(pasynUser, ASYN_TRACE_FLOW, 

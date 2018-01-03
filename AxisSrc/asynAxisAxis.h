@@ -76,6 +76,8 @@ class epicsShareClass asynAxisAxis {
   int referencingMode_;
   MotorStatus status_;
   int statusChanged_;
+  int waitNumPollsBeforeReady_;
+  int defWaitNumPollsBeforeReady_;
   
   private:
   void updateMsgTxtField(void);
