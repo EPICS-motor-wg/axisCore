@@ -14,6 +14,10 @@
 #define MAX_CONTROLLER_STRING_SIZE 256
 #define DEFAULT_CONTROLLER_TIMEOUT 2.0
 
+#define  MOTORNOTHOMEDPROBLEM_IGNORE    0
+#define  MOTORNOTHOMEDPROBLEM_WARNING   1
+#define  MOTORNOTHOMEDPROBLEM_ERROR     2
+
 /** Strings defining parameters for the driver. 
   * These are the values passed to drvUserCreate. 
   * The driver will place in pasynUser->reason an integer to be used when the
@@ -66,7 +70,9 @@
 /* Addition flags which can be set by the specific driver */
 #define motorFlagsHomeOnLsString        "MOTOR_FLAGSS_HOME_ON_LS"
 #define motorFlagsStopOnProblemString   "MOTOR_FLAGS_STOP_ON_PROBLEM"
-#define motorFlagsShowNotHomedString    "MOTOR_FLAGS_SHOW_NOT_HOMED"
+
+/* Not homed is ignored, shown, problem */
+#define motorNotHomedProblemString    "MOTOR_NOT_HOMED_PROBLEM"
 
 /* These are per-axis parameters for passing additional motor record information to the driver */
 #define motorRecResolutionString        "MOTOR_REC_RESOLUTION"
@@ -318,7 +324,6 @@ class epicsShareClass asynAxisController : public asynPortDriver {
    */
   int motorFlagsHomeOnLs_;
   int motorFlagsStopOnProblem_;
-  int motorFlagsShowNotHomed_;
 
   // These are per-axis parameters for passing additional motor record information to the driver
   int motorRecResolution_;
@@ -326,6 +331,7 @@ class epicsShareClass asynAxisController : public asynPortDriver {
   int motorRecOffset_;
 
   // Parameters from the controller to the driver and record
+  int motorNotHomedProblem_;
   int motorHighLimitRO_;
   int motorLowLimitRO_;
   int motorDefVelocityRO_;
