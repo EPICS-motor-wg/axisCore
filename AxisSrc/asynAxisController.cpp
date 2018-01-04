@@ -527,6 +527,7 @@ asynStatus asynAxisController::readGenericPointer(asynUser *pasynUser, void *poi
 {
   MotorStatus *pStatus = (MotorStatus *)pointer;
   int axis;
+  asynStatus status = asynSuccess;
   asynAxisAxis *pAxis;
   static const char *functionName = "readGenericPointer";
 
@@ -535,21 +536,31 @@ asynStatus asynAxisController::readGenericPointer(asynUser *pasynUser, void *poi
   axis = pAxis->axisNo_;
  
   getAddress(pasynUser, &axis);
-  memcpy(pStatus, &pAxis->status_, sizeof(*pStatus));
-  asynPrint(pasynUser, ASYN_TRACE_FLOW,
-    "%s:%s: MotorStatus = status%d, position=%f, encoder position=%f, velocity=%f, "
-    "highLimit=%f lowLimit=%f defVelo=%f maxVelo=%f defJogVelo=%f defJogAcc=%f sdbd=%f rdbd=%f\n",
-            driverName, functionName,  pStatus->status, pStatus->position,
-            pStatus->encoderPosition, pStatus->velocity,
-            pStatus->MotorConfigRO.motorHighLimitRaw,
-            pStatus->MotorConfigRO.motorLowLimitRaw,
-            pStatus->MotorConfigRO.motorDefVelocityRaw,
-            pStatus->MotorConfigRO.motorMaxVelocityRaw,
-            pStatus->MotorConfigRO.motorDefJogVeloRaw,
-            pStatus->MotorConfigRO.motorDefJogAccRaw,
-            pStatus->MotorConfigRO.motorSDBDRaw,
-            pStatus->MotorConfigRO.motorRDBDRaw);
-  return asynSuccess;
+  /*  We need to make sure that the most important member had been retrieved
+      from the controller */
+  if (!pAxis->initialPollDone_) status = asynError;
+  if (status == asynSuccess) status = getIntegerParam(axis, motorStatus_, (int *)&pStatus->status);
+  if (status == asynSuccess) {
+    memcpy(pStatus, &pAxis->status_, sizeof(*pStatus));
+    asynPrint(pasynUser, ASYN_TRACE_FLOW,
+	      "%s:%s: axis=%d status=0x%04x, position=%f, encoder position=%f, velocity=%f, "
+	      "highLimit=%f lowLimit=%f defVelo=%f maxVelo=%f defJogVelo=%f defJogAcc=%f sdbd=%f rdbd=%f\n",
+	      driverName, functionName,  axis, pStatus->status, pStatus->position,
+	      pStatus->encoderPosition, pStatus->velocity,
+	      pStatus->MotorConfigRO.motorHighLimitRaw,
+	      pStatus->MotorConfigRO.motorLowLimitRaw,
+	      pStatus->MotorConfigRO.motorDefVelocityRaw,
+	      pStatus->MotorConfigRO.motorMaxVelocityRaw,
+	      pStatus->MotorConfigRO.motorDefJogVeloRaw,
+	      pStatus->MotorConfigRO.motorDefJogAccRaw,
+	      pStatus->MotorConfigRO.motorSDBDRaw,
+	      pStatus->MotorConfigRO.motorRDBDRaw);
+  } else {
+    asynPrint(pasynUserSelf, ASYN_TRACE_ERROR,
+	      "%s:%s: axis=%d return asynStatus=%d \n",
+	      driverName, functionName, axis, (int)status);
+  }
+  return status;
 }  
 
 /** Called when asyn clients call pasynOctetSyncIO->write().

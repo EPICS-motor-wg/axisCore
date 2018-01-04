@@ -448,8 +448,10 @@ static long init_record(struct axisRecord * pmr )
                       (void *)&pPvt->status);
     if (status != asynSuccess) {
         asynPrint(pasynUser, ASYN_TRACE_ERROR,
-                  "devMotorAsyn::init_record: %s pasynGenericPointer->read returned %s", 
-                  pmr->name, pasynUser->errorMessage);
+                  "devMotorAsyn::init_record: %s pasynGenericPointer->read returned Error\n",
+                  pmr->name);
+	pmr->pact=1;
+	return(1);
     }
 
     /* We must get the first set of status values from the controller before
