@@ -391,6 +391,12 @@ void asynAxisAxis::updateMsgTxtField()
   if (motorMessageIsFromDriver) return;
 
   int motorStatusDone;
+  int motorStatusCommsError;
+  pC_->getIntegerParam(axisNo_,pC_->motorStatusCommsError_, &motorStatusCommsError);
+  if (motorStatusCommsError) {
+    setStringParam(pC_->motorMessageText_,"E: Communication error");
+    return;
+  }
   pC_->getIntegerParam(axisNo_,pC_->motorStatusDone_, &motorStatusDone);
 
   if (motorStatusDone) {
