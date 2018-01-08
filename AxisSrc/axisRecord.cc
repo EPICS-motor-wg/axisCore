@@ -396,6 +396,20 @@ enum moveMode{
  * Debug MIP and MIP changes
  * Not yet used (needs better printing)
 *******************************************************************************/
+static void mipSetBit(axisRecord *pmr, unsigned v)
+{
+  pmr->mip |= v;
+}
+
+static void mipClrBit(axisRecord *pmr, unsigned v)
+{
+  pmr->mip &= ~v;
+}
+
+static void mipSetMip(axisRecord *pmr, unsigned v)
+{
+  pmr->mip = v;
+}
 
 //#define MIPDEBUG
 #ifdef MIPDEBUG
@@ -516,8 +530,8 @@ static void callbackFunc(struct callback *pcb)
      */
     if (pmr->mip & MIP_DELAY_REQ)
     {
-        pmr->mip &= ~MIP_DELAY_REQ;     /* Turn off REQ. */
-        pmr->mip |= MIP_DELAY_ACK;      /* Turn on ACK. */
+        MIP_CLR_BIT(MIP_DELAY_REQ);      /* Turn off REQ. */
+        MIP_SET_BIT(MIP_DELAY_ACK);      /* Turn on ACK. */
 #if LT_EPICSBASE(3,14,10)
 	scanOnce(pmr);
 #else
@@ -858,21 +872,21 @@ static void doBackLash(axisRecord *pmr)
     if (pmr->mip & MIP_JOG_STOP)
     {
         doMoveDialPosition(pmr, moveModePosition, pmr->dval - pmr->bdst);
-        pmr->mip = MIP_JOG_BL1;
+        MIP_SET_VAL(MIP_JOG_BL1);
     }
     else if(pmr->mip & MIP_MOVE)
     {
         /* First part of move done. Do backlash correction. */
         doMoveDialPosition(pmr, moveModeBacklash, pmr->dval);
         pmr->rval = NINT(pmr->dval);
-        pmr->mip = MIP_MOVE_BL;
+        MIP_SET_VAL(MIP_MOVE_BL);
     }
     else if (pmr->mip & MIP_JOG_BL1)
     {
         /* First part of jog done. Do backlash correction. */
         doMoveDialPosition(pmr, moveModeBacklash, pmr->dval);
         pmr->rval = NINT(pmr->dval);
-        pmr->mip = MIP_JOG_BL2;
+        MIP_SET_VAL(MIP_JOG_BL2);
     }
     pmr->pp = TRUE;
 }
@@ -917,14 +931,14 @@ static long postProcess(axisRecord * pmr)
     }
 
     if (pmr->mip & MIP_LOAD_P)
-        pmr->mip = MIP_DONE;    /* We sent LOAD_POS, followed by GET_INFO. */
+        MIP_SET_VAL(MIP_DONE);    /* We sent LOAD_POS, followed by GET_INFO. */
     else if (pmr->mip & MIP_HOME)
     {
         /* Home command */
         if (pmr->mip & MIP_STOP)
         {
             /* Stopped and Hom* button still down.  Now do Hom*. */
-            pmr->mip &= ~MIP_STOP;
+            MIP_CLR_BIT(MIP_STOP);
             pmr->dmov = FALSE;
             MARK(M_DMOV);
             pmr->rcnt = 0;
@@ -936,14 +950,14 @@ static long postProcess(axisRecord * pmr)
         {
             if (pmr->mip & MIP_HOMF)
             {
-                pmr->mip &= ~MIP_HOMF;
+                MIP_CLR_BIT(MIP_HOMF);
                 pmr->homf = 0;
                 MARK_AUX(M_HOMF);
             }
             else if (pmr->mip & MIP_HOMR)
             {
     
-                pmr->mip &= ~MIP_HOMR;
+                MIP_CLR_BIT(MIP_HOMR);
                 pmr->homr = 0;
                 MARK_AUX(M_HOMR);
             }
@@ -955,8 +969,8 @@ static long postProcess(axisRecord * pmr)
         {
             doBackLash(pmr);
         }
-        pmr->mip &= ~MIP_JOG_STOP;
-        pmr->mip &= ~MIP_MOVE;
+        MIP_CLR_BIT(MIP_JOG_STOP);
+        MIP_CLR_BIT(MIP_MOVE);
     }
     else if (pmr->mip & MIP_JOG_BL1)
     {
@@ -966,7 +980,7 @@ static long postProcess(axisRecord * pmr)
     pmr->priv->last.val = pmr->val;
     pmr->priv->last.dval = pmr->dval;
     pmr->priv->last.rval = pmr->rval;
-    pmr->mip &= ~MIP_STOP;
+    MIP_CLR_BIT(MIP_STOP);
     MARK(M_MIP);
     return(OK);
 }
@@ -991,7 +1005,7 @@ static void maybeRetry(axisRecord * pmr)
         Debug(1, "maybeRetry: not close enough; diff = %f\n", diff);
         /* If max retry count is zero, retry is disabled */
         if (pmr->rtry == 0)
-            pmr->mip &= MIP_JOG_REQ; /* Clear everything, except jog request;
+            MIP_CLR_BIT(~MIP_JOG_REQ); /* Clear everything, except jog request;
                                       * for jog reactivation in postProcess(). */
         else
         {
@@ -999,9 +1013,9 @@ static void maybeRetry(axisRecord * pmr)
             {
                 /* Too many retries. */
                 /* pmr->spmg = motorSPMG_Pause; MARK(M_SPMG); */
-                pmr->mip = MIP_DONE;
+                MIP_SET_VAL(MIP_DONE);
                 if ((pmr->jogf && !pmr->hls) || (pmr->jogr && !pmr->lls))
-                    pmr->mip |= MIP_JOG_REQ;
+                    MIP_SET_BIT(MIP_JOG_REQ);
 
                 pmr->priv->last.val = pmr->val;
                 pmr->priv->last.dval = pmr->dval;
@@ -1015,7 +1029,7 @@ static void maybeRetry(axisRecord * pmr)
             {
                 pmr->dmov = FALSE;
                 UNMARK(M_DMOV);
-                pmr->mip = MIP_RETRY;
+                MIP_SET_VAL(MIP_RETRY);
             }
             MARK(M_RCNT);
         }
@@ -1024,7 +1038,7 @@ static void maybeRetry(axisRecord * pmr)
     {
         /* Yes, we're close enough to the desired value. */
         Debug(1, "maybeRetry: close enough; diff = %f\n", diff);
-        pmr->mip &= MIP_JOG_REQ;/* Clear everything, except jog request; for
+        MIP_CLR_BIT(~MIP_JOG_REQ);/* Clear everything, except jog request; for
                                  * jog reactivation in postProcess(). */
         if (pmr->miss)
         {
@@ -1264,7 +1278,7 @@ static long process(dbCommon *arg)
             if (pmr->dmov) {
                 pmr->dmov = FALSE;
                 MARK(M_DMOV);
-                pmr->mip |= MIP_EXTERNAL;
+                MIP_SET_BIT(MIP_EXTERNAL);
                 MARK(M_MIP);
                 pmr->pp = TRUE;
             }
@@ -1285,7 +1299,7 @@ static long process(dbCommon *arg)
                 if (pmr->mip == MIP_JOGF || pmr->mip == MIP_JOGR)
                 {
                     /* Motor stopped while jogging and we didn't stop it */
-                    pmr->mip = MIP_DONE;
+                    MIP_SET_VAL(MIP_DONE);
                     MARK(M_MIP);
                     clear_buttons(pmr);
                     pmr->pp = TRUE;
@@ -1301,7 +1315,7 @@ static long process(dbCommon *arg)
                 UNMARK(M_DMOV);
                 devSupGetInfo(pmr);
                 pmr->pp = TRUE;
-                pmr->mip = MIP_DONE;
+                MIP_SET_VAL(MIP_DONE);
                 MARK(M_MIP);
                 goto process_exit;
             }
@@ -1312,7 +1326,7 @@ static long process(dbCommon *arg)
                    !(pmr->mip & MIP_STOP)   &&
                    !(pmr->mip & MIP_JOG_STOP))
                 {
-                    pmr->mip = MIP_DONE;
+                    MIP_SET_VAL(MIP_DONE);
                     /* Bug fix, record locks-up when BDST != 0, DLY != 0 and
                      * new target position before backlash correction move.*/
                     goto enter_do_work;
@@ -1324,7 +1338,7 @@ static long process(dbCommon *arg)
             /* Should we test for a retry? Consider limit only if in direction of move.*/
             if (((pmr->rhls && pmr->cdir) || (pmr->rlls && !pmr->cdir)) || (pmr->mip == MIP_LOAD_P))
             {
-                pmr->mip = MIP_DONE;
+                MIP_SET_VAL(MIP_DONE);
                 MARK(M_MIP);
             }
             else if (pmr->dmov == TRUE)
@@ -1335,7 +1349,7 @@ static long process(dbCommon *arg)
                 {
                     if (pmr->mip & MIP_DELAY_ACK && !(pmr->mip & MIP_DELAY_REQ))
                     {
-                        pmr->mip |= MIP_DELAY;
+                        MIP_SET_BIT(MIP_DELAY);
                         devSupGetInfo(pmr);
                         /* Restore DMOV to false and UNMARK it so it is not posted. */
                         pmr->dmov = FALSE;
@@ -1344,12 +1358,12 @@ static long process(dbCommon *arg)
                     }
                     else if (pmr->stup != motorSTUP_ON && pmr->mip != MIP_DONE)
                     {
-                        pmr->mip &= ~MIP_DELAY;
+                        MIP_CLR_BIT(MIP_DELAY);
                         MARK(M_MIP);    /* done delaying */
                         maybeRetry(pmr);
                         if (pmr->mip == MIP_RETRY && pmr->rmod == motorRMOD_I)
                         {
-                            pmr->mip |= MIP_DELAY_REQ;
+                            MIP_SET_BIT(MIP_DELAY_REQ);
                             MARK(M_MIP);
                             Debug(3, "callbackRequestDelayed() called\n");
                             callbackRequestDelayed(&pcallback->dly_callback, pmr->dly);
@@ -1360,7 +1374,7 @@ static long process(dbCommon *arg)
                 {
                     if (!(pmr->mip & MIP_DELAY_REQ))
                     {
-                        pmr->mip |= MIP_DELAY_REQ;
+                        MIP_SET_BIT(MIP_DELAY_REQ);
                         MARK(M_MIP);
                         Debug(3, "callbackRequestDelayed() called\n");
                         callbackRequestDelayed(&pcallback->dly_callback, pmr->dly);
@@ -1480,7 +1494,7 @@ static void doRetryOrDone(axisRecord *pmr, bool preferred_dir,
     
     /* AJF fix for the bug where the retry count is not incremented when doing retries */
     /* This bug is seen when we use the readback link field                            */
-    pmr->mip |= MIP_MOVE;
+    MIP_SET_BIT(MIP_MOVE);
     MARK(M_MIP);
     /* v1.96 Don't post dmov if special already did. */
     if (pmr->dmov)
@@ -1621,7 +1635,7 @@ static RTN_STATUS doDVALchangedOrNOTdoneMoving(axisRecord *pmr)
             MARK(M_DMOV);
             if (pmr->mip != MIP_DONE)
             {
-                pmr->mip = MIP_DONE;
+                MIP_SET_VAL(MIP_DONE);
                 MARK(M_MIP);
             }
         }
@@ -1696,7 +1710,7 @@ static RTN_STATUS doDVALchangedOrNOTdoneMoving(axisRecord *pmr)
         MARK(M_RVAL);
         if ((pmr->mip & MIP_RETRY) != 0)
         {
-            pmr->mip = MIP_DONE;
+            MIP_SET_VAL(MIP_DONE);
             MARK(M_MIP);
         }
         if (pmr->mip == MIP_DONE && pmr->dmov == FALSE)
@@ -2060,7 +2074,7 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
                 {
                     if (pmr->mip & MIP_RETRY)
                     {
-                        pmr->mip = MIP_DONE;
+                        MIP_SET_VAL(MIP_DONE);
                         MARK(M_MIP);
                         pmr->dmov = TRUE;
                         MARK(M_DMOV);
@@ -2084,7 +2098,7 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
             if (!(pmr->mip & MIP_DELAY_REQ)) {
                /* When we wait for DLY, keep it. */
                /* Otherwise the record may lock up */
-                pmr->mip = MIP_STOP;     
+                MIP_SET_VAL(MIP_STOP);
                 MARK(M_MIP);
             }
             devSupStop(pmr);
@@ -2095,18 +2109,18 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
             /* Test for "queued" jog request. */
             if ((pmr->jogf && !pmr->hls) || (pmr->jogr && !pmr->lls))
             {
-                pmr->mip = MIP_JOG_REQ;
+                MIP_SET_VAL(MIP_JOG_REQ);
                 MARK(M_MIP);
             }
             else if (pmr->mip == MIP_STOP)
             {
-                pmr->mip = MIP_DONE;
+                MIP_SET_VAL(MIP_DONE);
                 MARK(M_MIP);
             }
         }
         else
         {
-            pmr->mip = MIP_DONE;
+            MIP_SET_VAL(MIP_DONE);
             MARK(M_MIP);
             pmr->rcnt = 0;
             MARK(M_RCNT);
@@ -2149,12 +2163,12 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
                 return(OK);
             }
 
-            pmr->mip = pmr->homf ? MIP_HOMF : MIP_HOMR;
+            MIP_SET_VAL(pmr->homf ? MIP_HOMF : MIP_HOMR);
             MARK(M_MIP);
             pmr->pp = TRUE;
             if (pmr->movn)
             {
-                pmr->mip |= MIP_STOP;
+                MIP_SET_BIT(MIP_STOP);
                 MARK(M_MIP);
                 devSupStop(pmr);
             }
@@ -2191,12 +2205,12 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
                 MARK(M_LVIO);
                 return(OK);
             }
-            pmr->mip = pmr->jogf ? MIP_JOGF : MIP_JOGR;
+            MIP_SET_VAL(pmr->jogf ? MIP_JOGF : MIP_JOGR);
             MARK(M_MIP);
             if (pmr->movn)
             {
                 pmr->pp = TRUE;
-                pmr->mip |= MIP_STOP;
+                MIP_SET_BIT(MIP_STOP);
                 MARK(M_MIP);
                 devSupStop(pmr);
             }
@@ -2220,8 +2234,10 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
         {
             /* Stop motor.  When stopped, process() will correct backlash. */
             pmr->pp = TRUE;
-            pmr->mip |= MIP_JOG_STOP;
-            pmr->mip &= ~(MIP_JOGF | MIP_JOGR);
+            MIP_SET_BIT(MIP_JOG_STOP);
+            MIP_CLR_BIT(MIP_JOGF | MIP_JOGR);
+            printf("%s:%d STOP %s jogging\n",
+                   __FILE__, __LINE__, pmr->name);
             devSupStop(pmr);
             return(OK);
         }
@@ -2288,7 +2304,7 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
             set_userlimits(pmr);        /* Translate dial limits to user limits. */
 
             pmr->priv->last.val = pmr->val;
-            pmr->mip = MIP_DONE;
+            MIP_SET_VAL(MIP_DONE);
             MARK(M_MIP);
             pmr->dmov = TRUE;
             MARK(M_DMOV);
@@ -2758,16 +2774,16 @@ pidcof:
 
     case axisRecordJOGF:
         if (pmr->jogf == 0)
-            pmr->mip &= ~MIP_JOG_REQ;
+            MIP_CLR_BIT(MIP_JOG_REQ);
         else if (pmr->mip == MIP_DONE && !pmr->hls)
-            pmr->mip |= MIP_JOG_REQ;
+	    MIP_SET_BIT(MIP_JOG_REQ);
         break;
 
     case axisRecordJOGR:
         if (pmr->jogr == 0)
-            pmr->mip &= ~MIP_JOG_REQ;
+            MIP_CLR_BIT(MIP_JOG_REQ);
         else if (pmr->mip == MIP_DONE && !pmr->lls)
-            pmr->mip |= MIP_JOG_REQ;
+            MIP_SET_BIT(MIP_JOG_REQ);
         break;
 
     case axisRecordJVEL:
@@ -3510,7 +3526,7 @@ static void load_pos(axisRecord * pmr)
         MARK(M_OFF);
         set_userlimits(pmr);    /* Translate dial limits to user limits. */
     }
-    pmr->mip = MIP_LOAD_P;
+    MIP_SET_VAL(MIP_LOAD_P);
     MARK(M_MIP);
     if (pmr->dmov == TRUE)
     {
