@@ -1292,11 +1292,21 @@ static long process(dbCommon *arg)
             /* Assume we're done moving until we find out otherwise. */
             if (pmr->dmov == FALSE)
             {
+#ifdef MIPDEBUG
+                {             
+                    char dbuf[MBLE];
+                    dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
+                    Debug(3, "%s:%d motor has stopped pp=%d mip=0x%0x(%s)\n",
+                          __FILE__, __LINE__, pmr->pp, pmr->mip, dbuf);
+                }
+#else
                 Debug(3, "%s:%d motor has stopped pp=%d mip=0x%0x\n",
                       __FILE__, __LINE__, pmr->pp, pmr->mip);
+#endif
                 pmr->dmov = TRUE;
                 MARK(M_DMOV);
-                if (pmr->mip == MIP_JOGF || pmr->mip == MIP_JOGR)
+                if ((pmr->mip & ~MIP_JOG_REQ) == MIP_JOGF ||
+		    (pmr->mip & ~MIP_JOG_REQ)== MIP_JOGR)
                 {
                     /* Motor stopped while jogging and we didn't stop it */
                     MIP_SET_VAL(MIP_DONE);
