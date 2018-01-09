@@ -173,7 +173,7 @@ static long init( int after )
     return 0;
 }
 
-static void init_controller_load_pos_if_needed(struct axisRecord *pmr, asynUser *pasynUser )
+static int load_pos_needed(struct axisRecord *pmr, asynUser *pasynUser)
 {
     /* This routine is copied out of the old motordevCom and initialises the controller
        based on the record values. I think most of it should be transferred to init_record
@@ -187,6 +187,24 @@ static void init_controller_load_pos_if_needed(struct axisRecord *pmr, asynUser 
     if ((use_rel != 0) ||
         ((fabs(pmr->dval) > rdbd) && (pmr->mres != 0) && (fabs(position * pmr->mres) < rdbd))
        )
+    {
+      return 1;
+    }
+    asynPrint(pasynUser, ASYN_TRACE_FLOW,
+	      "devMotorAsyn::init_controller_load_pos_if_needed, %s setting of position not required, position=%f, mres=%f, dval=%f, rdbd=%f",
+	      pmr->name, position, pmr->mres, pmr->dval, rdbd );
+    return 0;
+}
+
+static void init_controller_load_pos_if_needed(struct axisRecord *pmr, asynUser *pasynUser )
+{
+    /* This routine is copied out of the old motordevCom and initialises the controller
+       based on the record values. I think most of it should be transferred to init_record
+       which is one reason why I have separated it into another routine */
+    motorAsynPvt *pPvt = (motorAsynPvt *)pmr->dpvt;
+
+    /* the encoder ratio has been set in config_controller() */
+    if (load_pos_needed(pmr, pasynUser))
     {
         double setPos = pmr->dval / pmr->mres;
         epicsEventId initEvent = epicsEventCreate( epicsEventEmpty );
@@ -208,11 +226,6 @@ static void init_controller_load_pos_if_needed(struct axisRecord *pmr, asynUser 
             pPvt->initEvent = 0;
         }
     }
-    else
-        asynPrint(pasynUser, ASYN_TRACE_FLOW,
-                  "devMotorAsyn::init_controller_load_pos_if_needed, %s setting of position not required, position=%f, mres=%f, dval=%f, rdbd=%f",
-                  pmr->name, position, pmr->mres, pmr->dval, rdbd );
-
 }
 
 static long findDrvInfo(axisRecord *pmotor, asynUser *pasynUser, char *drvInfoString, int command)
@@ -450,8 +463,11 @@ static long init_record(struct axisRecord * pmr )
         asynPrint(pasynUser, ASYN_TRACE_ERROR,
                   "devMotorAsyn::init_record: %s pasynGenericPointer->read returned Error\n",
                   pmr->name);
-	pmr->pact=1;
-	return(1);
+	if (load_pos_needed(pmr, pasynUser)) {
+	    pmr->pact=1;
+	    return(1);
+	  }
+	  return 0;
     }
 
     /* We must get the first set of status values from the controller before

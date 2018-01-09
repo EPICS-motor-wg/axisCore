@@ -604,11 +604,77 @@ LOGIC:
 
 *******************************************************************************/
 
+static long initial_poll(axisRecord *pmr)
+{
+    process_motor_info(pmr, true);
+
+    /*
+     * If we're in closed-loop mode, initializing the user- and dial-coordinate
+     * motor positions (.val and .dval) is someone else's job. Otherwise,
+     * initialize them to the readback values (.rbv and .drbv) set by our
+     * recent call to process_motor_info().
+     */
+    if (pmr->omsl != menuOmslclosed_loop)
+    {
+        pmr->val = pmr->rbv;
+        MARK(M_VAL);
+        pmr->dval = pmr->drbv;
+        MARK(M_DVAL);
+        pmr->rval = NINT(pmr->dval / pmr->mres);
+        MARK(M_RVAL);
+    }
+
+    if (!softLimitsDefined(pmr))
+    {
+        /* The record has no soft limits, but the controller may have */
+        if (pmr->priv->softLimitRO.motorDialLimitsValid)
+        {
+            pmr->dhlm = pmr->priv->softLimitRO.motorDialHighLimitRO;
+            pmr->dllm = pmr->priv->softLimitRO.motorDialLowLimitRO;
+        }
+    }
+    /* Reset limits in case database values are invalid. */
+    set_dial_highlimit(pmr);
+    set_dial_lowlimit(pmr);
+
+    check_speed(pmr);
+    enforceMinRetryDeadband(pmr);
+
+    /* Initialize miscellaneous control fields. */
+    pmr->dmov = TRUE;
+    MARK(M_DMOV);
+    pmr->movn = FALSE;
+    MARK(M_MOVN);
+    pmr->lspg = pmr->spmg = motorSPMG_Go;
+    MARK(M_SPMG);
+    pmr->diff = pmr->dval - pmr->drbv;
+    MARK(M_DIFF);
+    pmr->priv->last.val = pmr->val;
+    pmr->priv->last.dval = pmr->dval;
+    pmr->priv->last.rval = pmr->rval;
+    pmr->lvio = 0;              /* init limit-violation field */
+
+    if (!softLimitsDefined(pmr))
+        ;
+    else if ((pmr->drbv > pmr->dhlm + pmr->sdbd) || (pmr->drbv < pmr->dllm - pmr->sdbd))
+    {
+        pmr->lvio = 1;
+        MARK(M_LVIO);
+    }
+
+    MARK(M_MSTA);   /* MSTA incorrect at boot-up; force posting. */
+
+    monitor(pmr);
+    return(OK);
+}
+
+
 static long init_record(dbCommon* arg, int pass)
 {
     axisRecord *pmr = (axisRecord *) arg;
     struct motor_dset *pdset;
     long status;
+    CALLBACK_VALUE process_reason;
     struct callback *pcallback; /* v3.2 */
     const char errmsg[] = "motor:init_record()";
 
@@ -705,70 +771,20 @@ static long init_record(dbCommon* arg, int pass)
      * v3.2 Fix so that first call to process() doesn't appear to be a callback
      * from device support.  (Reset ptrans->callback_changed to NO in devSup).
      */
-    (*pdset->update_values) (pmr);
-
-    process_motor_info(pmr, true);
-
-    /*
-     * If we're in closed-loop mode, initializing the user- and dial-coordinate
-     * motor positions (.val and .dval) is someone else's job. Otherwise,
-     * initialize them to the readback values (.rbv and .drbv) set by our
-     * recent call to process_motor_info().
-     */
-    if (pmr->omsl != menuOmslclosed_loop)
-    {
-        pmr->val = pmr->rbv;
-        MARK(M_VAL);
-        pmr->dval = pmr->drbv;
-        MARK(M_DVAL);
-        pmr->rval = NINT(pmr->dval / pmr->mres);
-        MARK(M_RVAL);
+    process_reason = (*pdset->update_values) (pmr);
+    switch (process_reason) {
+        case NOTHING_DONE:
+	    if (pmr->dol.type == CONSTANT)
+                 pmr->udf = TRUE;
+            break;
+        case CALLBACK_DATA:
+            initial_poll(pmr);
+            break;
+        case CALLBACK_NEWLIMITS:
+            break;
     }
-
-    if (!softLimitsDefined(pmr))
-    {
-        /* The record has no soft limits, but the controller may have */
-        if (pmr->priv->softLimitRO.motorDialLimitsValid)
-        {
-            pmr->dhlm = pmr->priv->softLimitRO.motorDialHighLimitRO;
-            pmr->dllm = pmr->priv->softLimitRO.motorDialLowLimitRO;
-        }
-    }
-    /* Reset limits in case database values are invalid. */
-    set_dial_highlimit(pmr);
-    set_dial_lowlimit(pmr);
-
-    check_speed(pmr);
-    enforceMinRetryDeadband(pmr);
-
-    /* Initialize miscellaneous control fields. */
-    pmr->dmov = TRUE;
-    MARK(M_DMOV);
-    pmr->movn = FALSE;
-    MARK(M_MOVN);
-    pmr->lspg = pmr->spmg = motorSPMG_Go;
-    MARK(M_SPMG);
-    pmr->diff = pmr->dval - pmr->drbv;
-    MARK(M_DIFF);
-    pmr->priv->last.val = pmr->val;
-    pmr->priv->last.dval = pmr->dval;
-    pmr->priv->last.rval = pmr->rval;
-    pmr->lvio = 0;              /* init limit-violation field */
-
-    if (!softLimitsDefined(pmr))
-        ;
-    else if ((pmr->drbv > pmr->dhlm + pmr->sdbd) || (pmr->drbv < pmr->dllm - pmr->sdbd))
-    {
-        pmr->lvio = 1;
-        MARK(M_LVIO);
-    }
-
-    MARK(M_MSTA);   /* MSTA incorrect at boot-up; force posting. */
-
-    monitor(pmr);
-    return(OK);
+    return OK;
 }
-
 
 /******************************************************************************
         postProcess()
@@ -1247,7 +1263,11 @@ static long process(dbCommon *arg)
         }
         process_reason = CALLBACK_DATA;
     }
-
+    if (process_reason == CALLBACK_DATA)
+    {
+      if ((pmr->dol.type == CONSTANT) && pmr->udf)
+	    pmr->udf = FALSE;
+    }
     if ((process_reason == CALLBACK_DATA) || (pmr->mip & MIP_DELAY_ACK))
     {
         /*
