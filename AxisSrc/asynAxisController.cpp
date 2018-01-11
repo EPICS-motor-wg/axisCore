@@ -151,9 +151,9 @@ asynAxisController::asynAxisController(const char *portName, int numAxes, int nu
   maxProfilePoints_ = 0;
   profileTimes_ = NULL;
   setIntegerParam(profileExecuteState_, PROFILE_EXECUTE_DONE);
-
+  pasynUserController_ = NULL;
+  asynStatusConnected_ = asynDisconnected;
   moveToHomeAxis_ = 0;
-
   asynPrint(this->pasynUserSelf, ASYN_TRACE_FLOW,
     "%s:%s: constructor complete\n",
     driverName, functionName);
@@ -710,6 +710,27 @@ void asynAxisController::asynMotorPoller()
       break;
     }
 
+    /*
+     * A poller does may not use an pasynUserController_, because e.g. it
+     * can access the hardware directly), then we dont have to wait for Connect
+     * But if the poller uses pasynUserController_, then it must be connected.
+     */
+    while (pasynUserController_ && (asynStatusConnected_ != asynSuccess)) {
+      unlock(); /* CreateAxis may need the lock */
+      asynStatus asynstatus = pasynManager->waitConnect(pasynUserController_,
+							idlePollPeriod_);
+      if (asynStatusConnected_ != asynstatus) {
+	asynPrint(pasynUserController_, ASYN_TRACE_FLOW,
+		  "%s:%s: waitConnect asynstatus=%d\n",
+		  driverName, "asynMotorPoller", (int)asynstatus);
+	asynStatusConnected_ = asynstatus;
+      }
+      lock();
+      if (shuttingDown_) {
+	unlock();
+	return; /* Terminate while(1) loop */
+      }
+    }
     poll();
     for (i=0; i<numAxes_; i++) {
       pAxis=getAxis(i);

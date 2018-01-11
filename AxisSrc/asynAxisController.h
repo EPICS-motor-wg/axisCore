@@ -394,6 +394,7 @@ class epicsShareClass asynAxisController : public asynPortDriver {
   asynStatus writeReadController();
   asynStatus writeReadController(const char *output, char *response, size_t maxResponseLen, size_t *responseLen, double timeout);
   asynUser *pasynUserController_;
+  asynStatus asynStatusConnected_;
   char outString_[MAX_CONTROLLER_STRING_SIZE];
   char inString_[MAX_CONTROLLER_STRING_SIZE];
 
