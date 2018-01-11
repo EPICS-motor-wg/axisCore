@@ -79,13 +79,13 @@ class epicsShareClass asynAxisAxis {
   int statusChanged_;
   int waitNumPollsBeforeReady_;
   int defWaitNumPollsBeforeReady_;
+  int initialPollDone_;
   
   private:
   void updateMsgTxtField(void);
   int referencingModeMove_;
   int wasMovingFlag_;
   int disableFlag_;
-  int initialPollDone_;
   double lastEndOfMoveTime_;
   
   friend class asynAxisController;
