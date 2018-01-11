@@ -35,6 +35,7 @@ class epicsShareClass asynAxisAxis {
   virtual asynStatus home(double minVelocity, double maxVelocity, double acceleration, int forwards);
   virtual asynStatus stop(double acceleration);
   virtual asynStatus initialPoll(void);
+  virtual void       handleDisconnect(asynStatus);
   virtual asynStatus poll(bool *moving);
   virtual asynStatus setPosition(double position);
   virtual asynStatus setEncoderPosition(double position);

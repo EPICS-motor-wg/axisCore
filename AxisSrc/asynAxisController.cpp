@@ -875,12 +875,30 @@ asynStatus asynAxisController::writeReadController(const char *output, char *inp
   size_t nwrite;
   asynStatus status;
   int eomReason;
-  // const char *functionName="writeReadController";
-  
+  const char *functionName="writeReadController";
+
   status = pasynOctetSyncIO->writeRead(pasynUserController_, output,
                                        strlen(output), input, maxChars, timeout,
                                        &nwrite, nread, &eomReason);
-                        
+  if (status == asynTimeout) {
+    asynPrint(pasynUserController_, ASYN_TRACE_ERROR,
+      "%s:%s Timeout\n",
+      driverName, functionName);
+    asynStatusConnected_ = status;
+  } else if ((status != asynSuccess) ||
+	     ((*nread == 0) && (eomReason & ASYN_EOM_END))) {
+    int  i;
+    asynPrint(pasynUserController_, ASYN_TRACE_ERROR,
+	      "%s:%s nread=%u status=%s (%d)\n",
+	      driverName, functionName,
+	      (unsigned)*nread, pasynManager->strStatus(status), (int)status);
+    asynStatusConnected_ = asynDisconnected;
+    for (i=0; i<numAxes_; i++) {
+      asynAxisAxis *pAxis = getAxis(i);
+      if (!pAxis) continue;
+      pAxis->handleDisconnect(asynDisconnected);
+    }
+  }
   return status;
 }
 

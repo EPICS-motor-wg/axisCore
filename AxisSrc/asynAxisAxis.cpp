@@ -120,6 +120,14 @@ asynStatus asynAxisAxis::initialPoll(void)
   return asynSuccess;
 }
 
+/** Indicate that the controller is disconnected
+  * This function does noy need to do anything.
+  * It may set initialPollDone_ to 0. */
+void asynAxisAxis::handleDisconnect(asynStatus status)
+{
+  (void)status;
+}
+
 /** Poll the axis.
   * This function should read the controller position, encoder position, and as many of the motorStatus flags
   * as the hardware supports.  It should call setIntegerParam() and setDoubleParam() for each item that it polls,
