@@ -185,7 +185,7 @@ USAGE...        Motor Record Support.
  *                    Changed error checks from dial to user limits.
  */                                                          
 
-#define VERSION 10.001005
+#define VERSION 10.002001
 
 #include    <stdlib.h>
 #include    <string.h>
@@ -211,8 +211,11 @@ USAGE...        Motor Record Support.
 #include    "errlog.h"
 #include    "axisDevSup.h"
 
-volatile int axisRecordDebug = 0;
+//#define DEBUG
+#ifdef DEBUG
+volatile int axisRecordDebug = 4;
 extern "C" {epicsExportAddress(int, axisRecordDebug);}
+#endif
 
 /*----------------debugging-----------------*/
 
@@ -411,8 +414,7 @@ static void mipSetMip(axisRecord *pmr, unsigned v)
   pmr->mip = v;
 }
 
-//#define MIPDEBUG
-#ifdef MIPDEBUG
+#ifdef DEBUG
 
 static void dbgMipToString(unsigned v, char *buf, size_t buflen)
 {
@@ -920,7 +922,14 @@ static long postProcess(axisRecord * pmr)
     int dir = dir_positive ? 1 : -1;
 #endif
 
-    Debug(3, "postProcess: entry\n");
+#ifdef DEBUG
+    {
+        char dbuf[MBLE];
+        dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
+        Debug(3, "%s:%d postProcess: entry mip=0x%0x(%s)\n",
+              __FILE__, __LINE__, pmr->mip, dbuf);
+    }
+#endif
 
     pmr->pp = FALSE;
 
@@ -1018,7 +1027,14 @@ static void maybeRetry(axisRecord * pmr)
     if ((fabs(diff) >= pmr->rdbd) && !(pmr->hls && user_cdir) && !(pmr->lls && !user_cdir))
     {
         /* No, we're not close enough.  Try again. */
-        Debug(1, "maybeRetry: not close enough; diff = %f\n", diff);
+#ifdef DEBUG
+        {
+            char dbuf[MBLE];
+            dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
+            Debug(3, "%s:%d maybeRetry: not close enough; diff=%f mip=0x%0x(%s)\n",
+                  __FILE__, __LINE__, diff, pmr->mip, dbuf);
+        }
+#endif
         /* If max retry count is zero, retry is disabled */
         if (pmr->rtry == 0)
             MIP_CLR_BIT(~MIP_JOG_REQ); /* Clear everything, except jog request;
@@ -1053,7 +1069,14 @@ static void maybeRetry(axisRecord * pmr)
     else
     {
         /* Yes, we're close enough to the desired value. */
-        Debug(1, "maybeRetry: close enough; diff = %f\n", diff);
+#ifdef DEBUG
+        {
+            char dbuf[MBLE];
+            dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
+            Debug(1, "%s:%d maybeRetry: close enough; diff=%f mip=0x%0x(%s)\n",
+                  __FILE__, __LINE__, diff, pmr->mip, dbuf);
+        }
+#endif
         MIP_CLR_BIT(~MIP_JOG_REQ);/* Clear everything, except jog request; for
                                  * jog reactivation in postProcess(). */
         if (pmr->miss)
@@ -1312,16 +1335,13 @@ static long process(dbCommon *arg)
             /* Assume we're done moving until we find out otherwise. */
             if (pmr->dmov == FALSE)
             {
-#ifdef MIPDEBUG
+#ifdef DEBUG
                 {             
                     char dbuf[MBLE];
                     dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
                     Debug(3, "%s:%d motor has stopped pp=%d mip=0x%0x(%s)\n",
                           __FILE__, __LINE__, pmr->pp, pmr->mip, dbuf);
                 }
-#else
-                Debug(3, "%s:%d motor has stopped pp=%d mip=0x%0x\n",
-                      __FILE__, __LINE__, pmr->pp, pmr->mip);
 #endif
                 pmr->dmov = TRUE;
                 MARK(M_DMOV);
@@ -1377,6 +1397,14 @@ static long process(dbCommon *arg)
 
                 if (pmr->mip & MIP_DELAY_ACK || (pmr->dly <= 0.0))
                 {
+#ifdef DEBUG
+                    {
+                        char dbuf[MBLE];
+                        dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
+                        Debug(3, "%s:%d (stopped) dmov==TRUE; no DLY; pp=%d mip=0x%0x(%s)\n",
+                              __FILE__, __LINE__, pmr->pp, pmr->mip, dbuf);
+                    }
+#endif
                     if (pmr->mip & MIP_DELAY_ACK && !(pmr->mip & MIP_DELAY_REQ))
                     {
                         MIP_SET_BIT(MIP_DELAY);
@@ -2043,7 +2071,14 @@ static RTN_STATUS do_work(axisRecord * pmr, CALLBACK_VALUE proc_ind)
                              pmr->spmg == motorSPMG_Pause) ? true : false;
     mmap_field mmap_bits;
 
-    Debug(3, "do_work: begin\n");
+#ifdef DEBUG
+    {
+        char dbuf[MBLE];
+        dbgMipToString(pmr->mip, dbuf, sizeof(dbuf));
+        Debug(3, "%s:%d do_work: begin mip=0x%0x(%s)\n",
+              __FILE__, __LINE__, pmr->mip, dbuf);
+    }
+#endif
     
     if (pmr->stup == motorSTUP_ON)
     {
