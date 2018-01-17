@@ -1405,6 +1405,7 @@ static long process(dbCommon *arg)
                               __FILE__, __LINE__, pmr->pp, pmr->mip, dbuf);
                     }
 #endif
+                    MIP_CLR_BIT(MIP_EXTERNAL);
                     if (pmr->mip & MIP_DELAY_ACK && !(pmr->mip & MIP_DELAY_REQ))
                     {
                         MIP_SET_BIT(MIP_DELAY);
